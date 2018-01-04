@@ -13,6 +13,8 @@ using System.Configuration;
 namespace SqlDependency_Test {
     public partial class Form1 : Form {
 
+        /* 確認DB有執行 [alter database <dbname> set enable_broker with rollback immediate;] */
+
         SqlConnection connection = new SqlConnection();
         private static string ConnectionString;
 
@@ -20,25 +22,34 @@ namespace SqlDependency_Test {
             InitializeComponent();
         }
 
-        private void button2_Click(object sender, EventArgs e) {
-            ConnectionString = "Data Source=" + txt_dbSource.Text + ";Initial Catalog=" + txt_dbDatabase.Text + ";User ID=" + txt_dbUser.Text + ";Password=" + txt_dbPassword.Text;
-            SqlDependency.Start(ConnectionString);
-            SqlDependencyWatch();
-            RefreshTable();
+
+        /* 啟動SQL監控 */
+        private void btn_Start_Click(object sender, EventArgs e) {
+            try {
+                ConnectionString = "Data Source=" + txt_dbSource.Text + ";Initial Catalog=" + txt_dbDatabase.Text + ";User ID=" + txt_dbUser.Text + ";Password=" + txt_dbPassword.Text;
+                SqlDependency.Start(ConnectionString);
+                SqlDependencyWatch();
+                RefreshTable();
+            } catch (Exception ex) {
+                MessageBox.Show(ex.ToString());
+            }
         }
 
+
+        /* 關閉SQL監控 */
         private void Form1_FormClosed(object sender, FormClosedEventArgs e) {
+            SqlDependency.Stop(ConnectionString);
+        }
+        private void btn_Stop_Click(object sender, EventArgs e) {
             SqlDependency.Stop(ConnectionString);
         }
 
 
-        //this.Invoke((EventHandler)(delegate { dataGridView1.DataSource = m; }));
+
+        /* 建立SQL監控 */
         private void SqlDependencyWatch() {
-            //string sSQL = "select name,age from [dbo].[People]";
 
-            string sSQL = "SELECT is_current_owner FROM [AMRZS_20170726].[sys].[dm_os_cluster_nodes]";
-
-            //string TT = "select LastName from dbo.Persons";
+            string sSQL = "SELECT id,errcode,errtext FROM [dbo].[alarm]";
 
             using (SqlConnection connection = new SqlConnection(ConnectionString)) {
                 using (SqlCommand command = new SqlCommand(sSQL, connection)) {
@@ -51,16 +62,22 @@ namespace SqlDependency_Test {
             }
         }
 
-        private void RefreshTable() {
-            string sSQL22 = "SELECT Nodename,status,is_current_owner FROM [AMRZS_20170726].[sys].[dm_os_cluster_nodes]";
+        /* 資料表修改觸發Event事件處理 */
+        void SQLTableOnChange(object sender, SqlNotificationEventArgs e) {
+            SqlDependencyWatch();
+            RefreshTable();
+        }
 
-            string TT = "select LastName from dbo.Persons";
+
+        /* 重新更新DataGridView顯示資料 */
+        private void RefreshTable() {
+            string sSQL = "SELECT * FROM alarm";
 
             DataTable datatable = new DataTable();
             using (SqlConnection connection = new SqlConnection(ConnectionString)) {
                 connection.Open();
-                using (SqlCommand cmd = new SqlCommand(TT, connection)) {
-                    using (SqlDataAdapter dr = new SqlDataAdapter(TT, connection)) {
+                using (SqlCommand cmd = new SqlCommand(sSQL, connection)) {
+                    using (SqlDataAdapter dr = new SqlDataAdapter(sSQL, connection)) {
                         dr.Fill(datatable);
                         this.Invoke((EventHandler)(delegate { dataGridView1.DataSource = datatable; }));
                     }
@@ -68,9 +85,6 @@ namespace SqlDependency_Test {
             }
         }
 
-        void SQLTableOnChange(object sender, SqlNotificationEventArgs e) {       
-            SqlDependencyWatch();
-            RefreshTable();
-        }
+
     }
 }
